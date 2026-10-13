@@ -1,0 +1,1020 @@
+{
+  "info": {
+    "_postman_id": "c8e1a7b0-7d4e-4f12-a123-9876543210ab",
+    "name": "Storify API",
+    "description": "Complete, production-ready Postman Collection for the Storify Cloud Storage API backend.\n\n### Modules Included:\n- Healthcheck (`/health` & `/api/v1/health`)\n- Authentication (`/api/v1/auth`)\n- Users (`/api/v1/users`)\n- Storage & Files (`/api/v1/storage` with Local & Bunny.net Storage)\n- Plans (`/api/v1/plans`)\n- Purchases (`/api/v1/purchases`)\n\n### Authentication Workflow:\n1. Execute **Register** or **Login** under the `Auth` folder.\n2. The collection automatically extracts the JWT Bearer token and stores it in the `authToken` collection variable.\n3. All authenticated endpoints automatically inherit `Authorization: Bearer {{authToken}}`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string",
+      "description": "Root backend API server host and port"
+    },
+    {
+      "key": "apiVersion",
+      "value": "v1",
+      "type": "string",
+      "description": "API version prefix"
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "type": "string",
+      "description": "Active JWT Bearer Token (automatically populated on Login/Register)"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string",
+      "description": "Authenticated user ObjectId"
+    },
+    {
+      "key": "fileId",
+      "value": "",
+      "type": "string",
+      "description": "Current file ObjectId"
+    },
+    {
+      "key": "planId",
+      "value": "",
+      "type": "string",
+      "description": "Target plan ObjectId (automatically captured from List Plans)"
+    },
+    {
+      "key": "purchaseId",
+      "value": "",
+      "type": "string",
+      "description": "Current purchase order ObjectId"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{authToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Health",
+      "description": "System health check endpoints checking server uptime and database connectivity.",
+      "item": [
+        {
+          "name": "Root Health Check",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "**Purpose**: Checks root server process health and MongoDB connection status.\n**Auth**: Not required (Public).\n**Request**: No body or query parameters.\n**Response**: 200 OK (or 503 if degraded) with service info, uptime, and DB status.\n**Frontend usage**: Flutter app can ping before startup or login to verify backend availability."
+          },
+          "response": []
+        },
+        {
+          "name": "API v1 Health Check",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "health"
+              ]
+            },
+            "description": "**Purpose**: Versioned healthcheck endpoint mounted under `/api/v1`.\n**Auth**: Not required (Public).\n**Request**: No body or query parameters.\n**Response**: 200 OK with server environment, uptime, and database status.\n**Frontend usage**: Used by mobile client network health checkers."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "description": "Authentication, registration, credential verification, and password recovery workflows.",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"User registered and token returned\", function () {",
+                  "    const res = pm.response.json();",
+                  "    pm.expect(res.success).to.be.true;",
+                  "    pm.expect(res.data).to.be.an('object');",
+                  "    if (res.data.token) {",
+                  "        pm.collectionVariables.set(\"authToken\", res.data.token);",
+                  "    }",
+                  "    if (res.data.user && res.data.user._id) {",
+                  "        pm.collectionVariables.set(\"userId\", res.data.user._id);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Jane Doe\",\n  \"email\": \"jane.doe@example.com\",\n  \"password\": \"Password123\",\n  \"acquisitionSource\": \"ORGANIC\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            },
+            "description": "**Purpose**: Creates a new user account with default 50 MB Free storage quota.\n**Auth**: Not required (Public).\n**Request**: JSON body with `name` (2-60 chars), `email` (valid email), `password` (min 6 chars), and optional `acquisitionSource` (`ORGANIC` or `ADVERTISEMENT`, defaults to `ORGANIC`).\n**Response**: 201 Created returning `{ user, token }`.\n**Frontend usage**: Registration screen in Flutter; automatically saves JWT to `authToken`."
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Token received and saved to collectionVariables\", function () {",
+                  "    const res = pm.response.json();",
+                  "    pm.expect(res.success).to.be.true;",
+                  "    pm.expect(res.data.token).to.be.a('string');",
+                  "    pm.collectionVariables.set(\"authToken\", res.data.token);",
+                  "    if (res.data.user && res.data.user._id) {",
+                  "        pm.collectionVariables.set(\"userId\", res.data.user._id);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"jane.doe@example.com\",\n  \"password\": \"Password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "**Purpose**: Authenticates user credentials and issues a signed JWT token.\n**Auth**: Not required (Public).\n**Request**: JSON body with `email` and `password`.\n**Response**: 200 OK with `{ user, token }`.\n**Frontend usage**: Flutter Login screen; extracts JWT and user profile."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current User (Me)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Returns current user profile\", function () {",
+                  "    const res = pm.response.json();",
+                  "    pm.expect(res.success).to.be.true;",
+                  "    pm.expect(res.data).to.have.property('email');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "me"
+              ]
+            },
+            "description": "**Purpose**: Retrieves authenticated user's profile and storage summary via auth route.\n**Auth**: Required (Bearer `{{authToken}}`).\n**Request**: No body.\n**Response**: 200 OK with user profile details, allocated storage, and plan.\n**Frontend usage**: Called on app startup when existing JWT is restored from secure storage."
+          },
+          "response": []
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"jane.doe@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/forgot-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "forgot-password"
+              ]
+            },
+            "description": "**Purpose**: Initiates password reset flow by issuing a secure 32-byte SHA-256 hashed reset token (valid for 15 minutes).\n**Auth**: Not required (Public).\n**Request**: JSON body with `email`.\n**Response**: 200 OK with `resetToken` in response data.\n**Frontend usage**: Flutter Forgot Password screen."
+          },
+          "response": []
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"replace_with_token_from_forgot_password\",\n  \"newPassword\": \"NewSecurePassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "reset-password"
+              ]
+            },
+            "description": "**Purpose**: Resets user password using the unhashed token issued by forgot-password.\n**Auth**: Not required (Public).\n**Request**: JSON body with `token` and `newPassword` (min 6 characters).\n**Response**: 200 OK confirming password reset.\n**Frontend usage**: Flutter Reset Password screen."
+          },
+          "response": []
+        },
+        {
+          "name": "Change Password (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"Password123\",\n  \"newPassword\": \"NewPassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/change-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "change-password"
+              ]
+            },
+            "description": "**Purpose**: Updates authenticated user password via PUT on auth route.\n**Auth**: Required (Bearer `{{authToken}}`).\n**Request**: JSON body with `currentPassword` and `newPassword`.\n**Response**: 200 OK confirming password change.\n**Frontend usage**: Settings / Security screen in Flutter."
+          },
+          "response": []
+        },
+        {
+          "name": "Change Password (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"Password123\",\n  \"newPassword\": \"NewPassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/change-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "change-password"
+              ]
+            },
+            "description": "**Purpose**: Updates authenticated user password via PATCH on auth route.\n**Auth**: Required (Bearer `{{authToken}}`).\n**Request**: JSON body with `currentPassword` and `newPassword`.\n**Response**: 200 OK.\n**Frontend usage**: Alternate PATCH method for Flutter HTTP clients."
+          },
+          "response": []
+        },
+        {
+          "name": "Change Password Alias (/password PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"Password123\",\n  \"newPassword\": \"NewPassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "password"
+              ]
+            },
+            "description": "**Purpose**: Alternate PUT endpoint route for changing password.\n**Auth**: Required (Bearer `{{authToken}}`).\n**Request**: JSON body with `currentPassword` and `newPassword`.\n**Response**: 200 OK."
+          },
+          "response": []
+        },
+        {
+          "name": "Change Password Alias (/password PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"Password123\",\n  \"newPassword\": \"NewPassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "password"
+              ]
+            },
+            "description": "**Purpose**: Alternate PATCH endpoint route for changing password.\n**Auth**: Required (Bearer `{{authToken}}`).\n**Request**: JSON body with `currentPassword` and `newPassword`.\n**Response**: 200 OK."
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "**Purpose**: Logs out user session.\n**Auth**: Not required (Stateless JWT token invalidation on client side).\n**Request**: No body.\n**Response**: 200 OK.\n**Frontend usage**: Flutter client deletes stored JWT from FlutterSecureStorage upon calling this."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "description": "User profile management and user-specific storage quota operations.",
+      "item": [
+        {
+          "name": "Get User Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me"
+              ]
+            },
+            "description": "**Purpose**: Retrieves detailed user profile via the Users module.\n**Auth**: Required (Bearer `{{authToken}}`).\n**Request**: No body.\n**Response**: 200 OK with full user metadata (role, status, plan, storage, verified).\n**Frontend usage**: Profile screen in Flutter."
+          },
+          "response": []
+        },
+        {
+          "name": "Update User Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Jane Smith\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me"
+              ]
+            },
+            "description": "**Purpose**: Updates editable profile fields for the authenticated user.\n**Auth**: Required (Bearer `{{authToken}}`).\n**Request**: JSON body with optional `name` (2-60 characters).\n**Response**: 200 OK with updated profile document.\n**Frontend usage**: Edit Profile screen in Flutter."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Password via Users (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"Password123\",\n  \"newPassword\": \"UpdatedPassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me/password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me",
+                "password"
+              ]
+            },
+            "description": "**Purpose**: Updates password via PUT route under `/api/v1/users/me/password`.\n**Auth**: Required (Bearer `{{authToken}}`).\n**Request**: JSON body with `currentPassword` and `newPassword`.\n**Response**: 200 OK with success confirmation.\n**Frontend usage**: Account security management."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Password via Users (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"Password123\",\n  \"newPassword\": \"UpdatedPassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me/password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me",
+                "password"
+              ]
+            },
+            "description": "**Purpose**: Updates password via PATCH route under `/api/v1/users/me/password`.\n**Auth**: Required (Bearer `{{authToken}}`).\n**Request**: JSON body with `currentPassword` and `newPassword`.\n**Response**: 200 OK."
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Storage Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me/storage",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me",
+                "storage"
+              ]
+            },
+            "description": "**Purpose**: Returns user's storage quota consumption, remaining bytes, and formatted strings.\n**Auth**: Required (Bearer `{{authToken}}`).\n**Request**: No body.\n**Response**: 200 OK with `usedBytes`, `allocatedBytes`, `remainingBytes`, `usagePercentage`, `usedFormatted`, `allocatedFormatted`.\n**Frontend usage**: Storage progress bar / dashboard in Flutter."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Storage",
+      "description": "Cloud storage quota and file operations (upload, list, details, download/access, delete). Works with active provider (Local filesystem or Bunny.net Edge Storage).",
+      "item": [
+        {
+          "name": "Get Storage Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/storage",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "storage"
+              ]
+            },
+            "description": "**Purpose**: Retrieves authenticated user's current storage quota consumption.\n**Auth**: Required (Bearer `{{authToken}}`).\n**Request**: No body.\n**Response**: 200 OK with detailed storage quota breakdown (`usedBytes`, `allocatedBytes`, `remainingBytes`, `usagePercentage`).\n**Frontend usage**: Home screen storage card in Flutter."
+          },
+          "response": []
+        },
+        {
+          "name": "Upload File",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"File uploaded and fileId saved to collectionVariables\", function () {",
+                  "    const res = pm.response.json();",
+                  "    pm.expect(res.success).to.be.true;",
+                  "    pm.expect(res.data).to.have.property('_id');",
+                  "    pm.collectionVariables.set(\"fileId\", res.data._id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "description": "Binary file to upload. Max single-file size: 50 MB (52,428,800 bytes). Supported types: images, documents, audio/video, archives."
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/storage/files",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "storage",
+                "files"
+              ]
+            },
+            "description": "**Purpose**: Atomically reserves user quota, streams physical file to storage provider (Local or Bunny.net), and records metadata in MongoDB.\n**Auth**: Required (Bearer `{{authToken}}`).\n**Request**: `multipart/form-data` with exact file field name `file`.\n**Constraints**: Maximum 50 MB (52,428,800 bytes). Whitelisted MIME types.\n**Response**: 201 Created with File metadata record; automatically saves `fileId` to variables.\n**Frontend usage**: Flutter file picker upload action."
+          },
+          "response": []
+        },
+        {
+          "name": "List Files",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Files array returned and captures fileId\", function () {",
+                  "    const res = pm.response.json();",
+                  "    pm.expect(res.success).to.be.true;",
+                  "    pm.expect(res.data.files).to.be.an('array');",
+                  "    if (res.data.files.length > 0 && res.data.files[0]._id) {",
+                  "        pm.collectionVariables.set(\"fileId\", res.data.files[0]._id);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/storage/files?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "storage",
+                "files"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number (min: 1, default: 1)"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Number of files per page (min: 1, max: 100, default: 20)"
+                }
+              ]
+            },
+            "description": "**Purpose**: Retrieves paginated list of uploaded files belonging strictly to the authenticated user.\n**Auth**: Required (Bearer `{{authToken}}`).\n**Query Parameters**: `page` (integer, min 1), `limit` (integer, 1-100).\n**Response**: 200 OK with `files` array and `pagination` object.\n**Frontend usage**: Files explorer list view in Flutter."
+          },
+          "response": []
+        },
+        {
+          "name": "Get File Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/storage/files/{{fileId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "storage",
+                "files",
+                "{{fileId}}"
+              ]
+            },
+            "description": "**Purpose**: Retrieves metadata for a single file with strict user ownership validation.\n**Auth**: Required (Bearer `{{authToken}}`).\n**Path Parameters**: `fileId` (MongoDB ObjectId).\n**Security**: Returns 404 if file does not exist or belongs to another user (Zero IDOR).\n**Response**: 200 OK with file metadata (`originalName`, `mimeType`, `sizeBytes`, `status`, `createdAt`).\n**Frontend usage**: File info / details modal in Flutter."
+          },
+          "response": []
+        },
+        {
+          "name": "Download / Access File",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/storage/files/{{fileId}}/access",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "storage",
+                "files",
+                "{{fileId}}",
+                "access"
+              ]
+            },
+            "description": "**Purpose**: Streams private physical file content from storage provider (Local disk or Bunny.net Edge Storage) directly through backend.\n**Auth**: Required (Bearer `{{authToken}}`).\n**Path Parameters**: `fileId` (MongoDB ObjectId).\n**Security**: Mediated server-to-server; never exposes Bunny credentials, storage paths, or direct public CDN links to Flutter.\n**Response**: 200 OK binary stream with headers: `Content-Type`, `Content-Length`, `Content-Disposition: attachment; filename=\"...\"`.\n**Frontend usage**: Flutter file downloader or media preview player."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete File",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"File deleted and storage reclaimed\", function () {",
+                  "    const res = pm.response.json();",
+                  "    pm.expect(res.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/storage/files/{{fileId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "storage",
+                "files",
+                "{{fileId}}"
+              ]
+            },
+            "description": "**Purpose**: Deletes physical file from storage provider (Local disk or Bunny.net), removes MongoDB record, and atomically decrements usedBytes quota.\n**Auth**: Required (Bearer `{{authToken}}`).\n**Path Parameters**: `fileId` (MongoDB ObjectId).\n**Response**: 200 OK confirming deletion.\n**Frontend usage**: Delete file action button in Flutter."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Plans",
+      "description": "Database-driven plans catalog. Runtime single source of truth is MongoDB Plans collection.",
+      "item": [
+        {
+          "name": "List Plans",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Active plans returned and planId captured\", function () {",
+                  "    const res = pm.response.json();",
+                  "    pm.expect(res.success).to.be.true;",
+                  "    pm.expect(res.data.plans).to.be.an('array');",
+                  "    // Select first paid tier (Basic/Premium/Pro) or first plan",
+                  "    const paidPlan = res.data.plans.find(p => p.code !== 'free') || res.data.plans[0];",
+                  "    if (paidPlan && paidPlan._id) {",
+                  "        pm.collectionVariables.set(\"planId\", paidPlan._id);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/plans",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "plans"
+              ]
+            },
+            "description": "**Purpose**: Retrieves list of active storage plans from MongoDB, sorted by `sortOrder`.\n**Auth**: Required (Bearer `{{authToken}}`).\n**Request**: No body or query parameters.\n**Response**: 200 OK with `plans` array (Free 50MB, Basic 300MB, Premium 500MB, Pro 900MB). Automatically saves a plan ObjectId to `planId`.\n**Frontend usage**: Upgrade plan / Subscription options screen in Flutter."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Plan by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/plans/{{planId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "plans",
+                "{{planId}}"
+              ]
+            },
+            "description": "**Purpose**: Retrieves details for a specific active plan from MongoDB.\n**Auth**: Required (Bearer `{{authToken}}`).\n**Path Parameters**: `planId` (MongoDB ObjectId).\n**Response**: 200 OK with plan metadata (`_id`, `name`, `code`, `storageBytes`, `status`, `sortOrder`).\n**Frontend usage**: Plan details / confirmation card in Flutter."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Purchases",
+      "description": "Order creation, immutable plan snapshots, and purchase history. Note: creates pending order records; payment processing and automatic quota access will be enabled in subsequent steps.",
+      "item": [
+        {
+          "name": "Create Purchase",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 Created or 200 OK (reused)\", function () {",
+                  "    pm.expect([200, 201]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "pm.test(\"Purchase order created and purchaseId captured\", function () {",
+                  "    const res = pm.response.json();",
+                  "    pm.expect(res.success).to.be.true;",
+                  "    if (res.data && res.data._id) {",
+                  "        pm.collectionVariables.set(\"purchaseId\", res.data._id);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planId\": \"{{planId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/purchases",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "purchases"
+              ]
+            },
+            "description": "**Purpose**: Creates a pending purchase order with an immutable `planSnapshot` capturing plan parameters at order time.\n**Auth**: Required (Bearer `{{authToken}}`).\n**Request Body**: `{ \"planId\": \"{{planId}}\" }`.\n**Security & Invariants**:\n- `acquisitionSource` is inherited durably from `req.user.acquisitionSource`; client cannot override.\n- Reuses existing pending purchase within a 5-minute cooldown window to prevent rapid-click duplicates.\n- Does NOT increase user storage quota (`allocatedBytes` untouched until payment step).\n**Response**: 201 Created (or 200 OK if reused pending); automatically captures `purchaseId`.\n**Frontend usage**: Initiate Plan Purchase button in Flutter."
+          },
+          "response": []
+        },
+        {
+          "name": "List Purchases",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/purchases?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "purchases"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number (min: 1, default: 1)"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Purchases per page (min: 1, max: 100, default: 10)"
+                }
+              ]
+            },
+            "description": "**Purpose**: Retrieves paginated purchase history belonging exclusively to the authenticated user.\n**Auth**: Required (Bearer `{{authToken}}`).\n**Query Parameters**: `page` (min 1), `limit` (1-100).\n**Response**: 200 OK with `purchases` array and `pagination` object.\n**Frontend usage**: Order history / Billing screen in Flutter."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Purchase by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/purchases/{{purchaseId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "purchases",
+                "{{purchaseId}}"
+              ]
+            },
+            "description": "**Purpose**: Retrieves details of a specific purchase order with strict ownership validation.\n**Auth**: Required (Bearer `{{authToken}}`).\n**Path Parameters**: `purchaseId` (MongoDB ObjectId).\n**Security**: Returns 404 if purchase does not exist or belongs to another user (Zero IDOR).\n**Response**: 200 OK with purchase document, immutable `planSnapshot`, status, and paymentReference (`null`).\n**Frontend usage**: Purchase receipt / Order status screen in Flutter."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
